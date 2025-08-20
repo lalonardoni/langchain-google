@@ -146,6 +146,29 @@ def get_generation_info(
     logprobs: Union[bool, int] = False,
 ) -> Dict[str, Any]:
     # https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini#response_body
+    # Robust handling for finish_reason which can be an enum, int, or string depending on SDK/version
+    finish_reason_value = None
+    if hasattr(candidate, "finish_reason") and candidate.finish_reason is not None:
+        fr = candidate.finish_reason
+        fr_name = getattr(fr, "name", None)
+        if fr_name:
+            finish_reason_value = fr_name
+        elif isinstance(fr, int):
+            _FINISH_REASON_MAP = {
+                0: "FINISH_REASON_UNSPECIFIED",
+                1: "STOP",
+                2: "MAX_TOKENS",
+                3: "SAFETY",
+                4: "RECITATION",
+                5: "OTHER",
+                6: "BLOCKLIST",
+                7: "PROHIBITED_CONTENT",
+                8: "SPII",
+            }
+            finish_reason_value = _FINISH_REASON_MAP.get(fr, str(fr))
+        else:
+            finish_reason_value = str(fr)
+
     info = {
         "is_blocked": any([rating.blocked for rating in candidate.safety_ratings]),
         "safety_ratings": [
@@ -168,9 +191,7 @@ def get_generation_info(
             else None
         ),
         "usage_metadata": usage_metadata,
-        "finish_reason": (
-            candidate.finish_reason.name if candidate.finish_reason else None
-        ),
+        "finish_reason": finish_reason_value,
         "finish_message": (
             candidate.finish_message if candidate.finish_message else None
         ),
